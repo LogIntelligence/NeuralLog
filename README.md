@@ -37,4 +37,4 @@ See [notebook](demo/Transformer_based_Classification.ipynb)
 ## Results
 ![Framework of NeuralLog](docs/images/results.PNG)
 ## Data and Models
-[Lastest release](/vanhoanglepsa/NeuralLog/releases/latest)
+[Lastest release](/releases/latest)
