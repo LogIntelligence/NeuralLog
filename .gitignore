@@ -129,5 +129,5 @@ dmypy.json
 .pyre/
 
 # data and models
-data/
-saved_modesl/
+data/*/
+saved_models/*
