@@ -8,7 +8,7 @@ Repository for the paper: Log-based Anomaly Detection Without Log Parsing.
 
 NeuralLog consists of the following components:
 1. **Preprocessing**: Special characters and numbers are removed from log messages.
-2. **Neural Representation**: Semantic vectors is extracted from log messages using BERT.
+2. **Neural Representation**: Semantic vectors are extracted from log messages using BERT.
 3. **Transformer-based Classification**: A transformer-based classification model containing Positional Encoding and
  Transformer Encoder is applied to detect anomalies.
 
