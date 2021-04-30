@@ -34,7 +34,7 @@ emb_dir = "../data/embeddings/BGL"
 - Train/Test Transformer Model
 
 See [notebook](demo/Transformer_based_Classification.ipynb)
+## Data and Models
+Datasets and pre-trained models can be found here: [Data](https://figshare.com/s/6d3c6a83f4828d17be79)
 ## Results
 ![Framework of NeuralLog](docs/images/results.jpg)
-## Data and Models
-[Lastest release](https://figshare.com/s/6d3c6a83f4828d17be79)
