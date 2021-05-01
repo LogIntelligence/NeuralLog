@@ -121,7 +121,7 @@ if __name__ == '__main__':
     with open(os.path.join(emb_dir, "bert-train.pkl"), mode="rb") as f:
         (x_tr, y_tr) = pickle.load(f)
 
-    with open(os.path.join(emb_dir, "bert-test.pkl"), mode="wb") as f:
+    with open(os.path.join(emb_dir, "bert-test.pkl"), mode="rb") as f:
         (x_te, y_te) = pickle.load(f)
 
     model = train(x_tr, y_tr, 20, 64, x_te, y_te, "bgl_transformer.hdf5")
