@@ -334,15 +334,17 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
         seq = []
         label = 0
         for j in range(i, i + windows_size):
+            if logs[j][0] != "-":
+                label = 1
             content = logs[j]
+            # remove label from log messages
+            content = content[content.find(' ') + 1:]
             content = clean(content.lower())
             if content not in E.keys():
                 E[content] = encoder(content, NoWordPiece)
                 # print(content)
             emb = E[content]
             seq.append(emb)
-            if logs[j][0] != "-":
-                label = 1
         x_tr.append(seq.copy())
         y_tr.append(label)
         j = i + 1
@@ -361,15 +363,17 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
         seq = []
         label = 0
         for j in range(i, i + windows_size):
+            if logs[j][0] != "-":
+                label = 1
             content = logs[j]
+            # remove label from log messages
+            content = content[content.find(' ') + 1:]
             content = clean(content.lower())
             if content not in E.keys():
                 E[content] = encoder(content)
                 print(len(E.keys()))
             emb = E[content]
             seq.append(emb)
-            if logs[j][0] != "-":
-                label = 1
 
         x_te.append(seq.copy())
         y_te.append(label)
