@@ -299,10 +299,10 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
              mode="balance", NoWordPiece=0):
     print("Loading", log_file)
 
-    with open(log_file, mode="r") as f:
+    with open(log_file, mode="r", encoding='utf8') as f:
         logs = f.readlines()
         logs = [x.strip() for x in logs]
-
+    logs = logs[:100000]
     try:
         with open(e_name, mode='rb') as f:
             E = pickle.load(f)
@@ -403,13 +403,13 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
 
 if __name__ == '__main__':
     (x_tr, y_tr), (x_te, y_te) = load_Supercomputers(
-        "./data/raw/Thunderbird10M.log", train_ratio=0.8, windows_size=20,
-        step_size=0, e_type='bert', e_name=None, mode='balance')
+        "../data/raw/BGL.log", train_ratio=0.8, windows_size=20,
+        step_size=0, e_type='bert', e_name=None, mode='imbalance')
 
-    with open("./data/embeddings/Thunderbird/neural-train.pkl", mode="wb") as f:
+    with open("../data/embeddings/BGL/iforest-train.pkl", mode="wb") as f:
         pickle.dump((x_tr, y_tr), f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open("./data/embeddings/Thunderbird/neural-test.pkl", mode="wb") as f:
+    with open("../data/embeddings/BGL/iforest-test.pkl", mode="wb") as f:
         pickle.dump((x_te, y_te), f, protocol=pickle.HIGHEST_PROTOCOL)
 
     # (x_tr, y_tr), (x_te, y_te) = load_HDFS(
