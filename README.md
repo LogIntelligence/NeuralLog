@@ -37,4 +37,17 @@ See [notebook](demo/Transformer_based_Classification.ipynb)
 ## Data and Models
 Datasets and pre-trained models can be found here: [Data](https://figshare.com/s/6d3c6a83f4828d17be79)
 ## Results
-![Framework of NeuralLog](docs/images/results.jpg)
+| Dataset | Metrics | LR | SVM | IM | LogRobust | Log2Vec | NeuralLog |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+|  | Precision | 0.99 | 0.99 | 1.00 | 0.98 | 0.94 | 0.96 |
+| HDFS | Recall | 0.92 | 0.94 | 0.88 | 1.00 | 0.94 | 1.00 |
+|  | F1-score | 0.96 | 0.96 | 0.94 | 0.99 | 0.94 | 0.98 |
+|  | Precision | 0.13 | 0.97 | 0.13 | 0.62 | 0.80 | 0.98 |
+| BGL | Recall | 0.93 | 0.30 | 0.30 | 0.96 | 0.98 | 0.98 |
+|  | F1-score | 0.23 | 0.46 | 0.18 | 0.75 | 0.88 | 0.98 |
+|  | Precision | 0.46 | 0.34 | - | 0.61 | 0.74 | 0.93 |
+| Thunderbird | Recall | 0.91 | 0.91 | - | 0.78 | 0.94 | 1.00 |
+|  | F1-score | 0.61 | 0.50 | - | 0.68 | 0.84 | 0.96 |
+|  | Precision | 0.89 | 0.88 | - | 0.97 | 0.91 | 0.98 |
+| Spirit | Recall | 0.96 | 1.00 | - | 0.94 | 0.96 | 0.96 |
+|  | F1-score | 0.92 | 0.93 | - | 0.95 | 0.95 | 0.97 |
