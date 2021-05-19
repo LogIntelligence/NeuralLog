@@ -16,7 +16,10 @@ NeuralLog consists of the following components:
 2. tensorflow 2.4
 3. transformers
 4. tf-models-official 2.4.0
-5. ...
+5. scikit-learn
+6. pandas
+7. numpy
+8. gensim
 ## Demo
 - Extract Semantic Vectors
 
