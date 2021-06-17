@@ -302,7 +302,7 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
     with open(log_file, mode="r", encoding='utf8') as f:
         logs = f.readlines()
         logs = [x.strip() for x in logs]
-    logs = logs[:100000]
+        
     try:
         with open(e_name, mode='rb') as f:
             E = pickle.load(f)
