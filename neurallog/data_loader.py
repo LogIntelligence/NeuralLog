@@ -304,7 +304,6 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
     with open(log_file, mode="r", encoding='utf8') as f:
         logs = f.readlines()
         logs = [x.strip() for x in logs]
-    logs = logs[:1000000]
     try:
         with open(e_name, mode='rb') as f:
             E = pickle.load(f)
@@ -420,7 +419,7 @@ if __name__ == '__main__':
     # with open("../data/embeddings/BGL/iforest-test.pkl", mode="wb") as f:
     #     pickle.dump((x_te, y_te), f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    (x_tr, y_tr), (x_te, y_te) = load(
+    (x_tr, y_tr), (x_te, y_te) = load_HDFS(
         "../data/raw/HDFS/HDFS.log", "../data/raw/HDFS/anomaly_label.csv", train_ratio=0.8, split_type='sequential')
     #
     # with open("./data/embeddings/BGL/neural-train.pkl", mode="wb") as f:
