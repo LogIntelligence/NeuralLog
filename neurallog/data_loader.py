@@ -30,7 +30,7 @@ def gpt2_encoder(s, no_wordpiece=0):
         words = [word for word in words if word in gpt2_tokenizer.get_vocab().keys()]
         s = " ".join(words)
     try:
-        inputs = gpt2_tokenizer(s, return_tensors='tf')
+        inputs = gpt2_tokenizer(s, return_tensors='tf', max_length=512)
         outputs = gpt2_model(**inputs)
         v = tf.reduce_mean(outputs.last_hidden_state, 1)
         return v[0]
@@ -43,7 +43,7 @@ def bert_encoder(s, no_wordpiece=0):
         words = s.split(" ")
         words = [word for word in words if word in bert_tokenizer.vocab.keys()]
         s = " ".join(words)
-    inputs = bert_tokenizer(s, return_tensors='tf')
+    inputs = bert_tokenizer(s, return_tensors='tf', max_length=512)
     outputs = bert_model(**inputs)
     v = tf.reduce_mean(outputs.last_hidden_state, 1)
     return v[0]
@@ -54,7 +54,7 @@ def xlm_encoder(s, no_wordpiece=0):
         words = s.split(" ")
         words = [word for word in words if word in xlm_tokenizer.get_vocab().keys()]
         s = " ".join(words)
-    inputs = xlm_tokenizer(s, return_tensors='tf')
+    inputs = xlm_tokenizer(s, return_tensors='tf', max_length=512)
     outputs = xlm_model(**inputs)
     v = tf.reduce_mean(outputs.last_hidden_state, 1)
     return v[0]
@@ -160,7 +160,7 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
             encoder = word2vec_encoder
 
     E = {}
-
+    t0 = time.time()
     if log_file.endswith('.npz'):
         # Split training and validation set in a class-uniform way
         data = np.load(log_file, allow_pickle=True)
@@ -238,6 +238,7 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
             return (x_train, None), (x_test, None), data_df
     else:
         raise NotImplementedError('load_HDFS() only support csv and npz files!')
+    print(time.time() - t0)
 
     num_train = x_train.shape[0]
     num_test = x_test.shape[0]
@@ -295,6 +296,7 @@ def timestamp(log):
     t = log[:log.find(" ")]
     return float(t)
 
+import time
 def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0, e_type='bert', e_name=None,
              mode="balance", NoWordPiece=0):
     print("Loading", log_file)
@@ -302,7 +304,7 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
     with open(log_file, mode="r", encoding='utf8') as f:
         logs = f.readlines()
         logs = [x.strip() for x in logs]
-    logs = logs[:100000]
+    logs = logs[:1000000]
     try:
         with open(e_name, mode='rb') as f:
             E = pickle.load(f)
@@ -325,6 +327,7 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
     failure_count = 0
     n_train = int(len(logs) * train_ratio)
     c = 0
+    t0 = time.time()
     while i < n_train - windows_size:
         c += 1
         if c % 1000 == 0:
@@ -341,21 +344,24 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
             content = content[content.find(' ') + 1:]
             content = clean(content.lower())
             if content not in E.keys():
-                E[content] = encoder(content, NoWordPiece)
+                try:
+                    E[content] = encoder(content, NoWordPiece)
+                except:
+                    print(content)
                 # print(content)
             emb = E[content]
             seq.append(emb)
         x_tr.append(seq.copy())
         y_tr.append(label)
-        j = i + 1
-        while timestamp(logs[j]) - timestamp(logs[i]) < step_size:
-            j += 1
-        i = j
+        # j = i + 1
+        # while timestamp(logs[j]) - timestamp(logs[i]) < step_size:
+        #     j += 1
+        i = i + windows_size
     print("last train index:", i)
     x_te = []
     y_te = []
     #
-    for i in range(n_train, len(logs) - windows_size):
+    for i in range(n_train, len(logs) - windows_size, windows_size):
         if i % 1000 == 0:
             print("Loading {:.2f}".format(i * 100 / n_train))
         if logs[i][0] != "-":
@@ -374,9 +380,11 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
                 print(len(E.keys()))
             emb = E[content]
             seq.append(emb)
-
         x_te.append(seq.copy())
+        # x_te.append(seq.copy())
         y_te.append(label)
+
+    print(time.time() - t0)
 
     (x_tr, y_tr) = shuffle(x_tr, y_tr)
     print("Total failure logs: {0}".format(failure_count))
@@ -402,18 +410,18 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
 
 
 if __name__ == '__main__':
-    (x_tr, y_tr), (x_te, y_te) = load_Supercomputers(
-        "../data/raw/BGL.log", train_ratio=0.8, windows_size=20,
-        step_size=0, e_type='bert', e_name=None, mode='imbalance')
+    # (x_tr, y_tr), (x_te, y_te) = load_Supercomputers(
+    #     "../data/raw/BGL.log", train_ratio=0.8, windows_size=20,
+    #     step_size=0, e_type='bert', e_name=None, mode='imbalance')
+    #
+    # with open("../data/embeddings/BGL/iforest-train.pkl", mode="wb") as f:
+    #     pickle.dump((x_tr, y_tr), f, protocol=pickle.HIGHEST_PROTOCOL)
+    #
+    # with open("../data/embeddings/BGL/iforest-test.pkl", mode="wb") as f:
+    #     pickle.dump((x_te, y_te), f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open("../data/embeddings/BGL/iforest-train.pkl", mode="wb") as f:
-        pickle.dump((x_tr, y_tr), f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    with open("../data/embeddings/BGL/iforest-test.pkl", mode="wb") as f:
-        pickle.dump((x_te, y_te), f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    # (x_tr, y_tr), (x_te, y_te) = load_HDFS(
-    #     "./data/raw/HDFS/HDFS.log", "./data/raw/HDFS/anomaly_label.csv", train_ratio=0.8, split_type='sequential')
+    (x_tr, y_tr), (x_te, y_te) = load(
+        "../data/raw/HDFS/HDFS.log", "../data/raw/HDFS/anomaly_label.csv", train_ratio=0.8, split_type='sequential')
     #
     # with open("./data/embeddings/BGL/neural-train.pkl", mode="wb") as f:
     #     pickle.dump((x_tr, y_tr), f, protocol=pickle.HIGHEST_PROTOCOL)
