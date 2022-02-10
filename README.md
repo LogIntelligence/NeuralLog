@@ -55,3 +55,17 @@ Datasets and pre-trained models can be found here: [Data](https://figshare.com/s
 |  | Precision | 0.89 | 0.88 | - | 0.97 | 0.91 | **0.98** |
 | Spirit | Recall | 0.96 | **1.00** | - | 0.94 | 0.96 | 0.96 |
 |  | F1-score | 0.92 | 0.93 | - | 0.95 | 0.95 | **0.97** |
+
+
+## Citation
+If you find the code and models useful for your research, please cite the following paper:
+```
+@inproceedings{le2021log,
+  title={Log-based anomaly detection without log parsing},
+  author={Le, Van-Hoang and Zhang, Hongyu},
+  booktitle={2021 36th IEEE/ACM International Conference on Automated Software Engineering (ASE)},
+  pages={492--504},
+  year={2021},
+  organization={IEEE}
+}
+```
