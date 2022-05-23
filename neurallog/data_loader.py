@@ -221,7 +221,7 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
             data_dict[blk_Id].append(E[content])
         i += 1
         if i % 1000 == 0 or i == n_logs:
-            print("Loading {0:.2f} - number of unique message: {1}".format(i / n_logs * 100, len(E.keys())))
+            print("\rLoading {0:.2f}% - number of unique message: {1}".format(i / n_logs * 100, len(E.keys())), end="")
     data_df = pd.DataFrame(list(data_dict.items()), columns=['BlockId', 'EventSequence'])
 
     if label_file:
@@ -254,7 +254,7 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
         return (x_train, None), (x_test, None), data_df
     # else:
     #     raise NotImplementedError('load_HDFS() only support csv and npz files!')
-    print("Loaded all HDFS dataset in: ", time.time() - t0)
+    print("\nLoaded all HDFS dataset in: ", time.time() - t0)
 
     num_train = x_train.shape[0]
     num_test = x_test.shape[0]
@@ -354,7 +354,7 @@ def load_supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
     while i < n_train - windows_size:
         c += 1
         if c % 1000 == 0:
-            print("Loading {0:.2f} - {1} unique logs".format(i * 100 / n_train, len(E.keys())))
+            print("\rLoading {0:.2f}% - {1} unique logs".format(i * 100 / n_train, len(E.keys())), end="")
         if logs[i][0] != "-":
             failure_count += 1
         seq = []
@@ -376,7 +376,7 @@ def load_supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
         x_tr.append(seq.copy())
         y_tr.append(label)
         i = i + step_size
-    print("last train index:", i)
+    print("\nlast train index:", i)
     x_te = []
     y_te = []
     #
@@ -400,8 +400,6 @@ def load_supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
             seq.append(emb)
         x_te.append(seq.copy())
         y_te.append(label)
-
-    print(time.time() - t0)
 
     (x_tr, y_tr) = shuffle(x_tr, y_tr)
     print("Total failure logs: {0}".format(failure_count))

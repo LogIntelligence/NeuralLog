@@ -13,6 +13,7 @@ from sklearn.utils import shuffle
 
 from neurallog.models import NeuralLog
 from neurallog import data_loader
+from neurallog.utils import classification_report
 
 log_file = "../logs/BGL.log"
 embed_dim = 768  # Embedding size for each token
@@ -62,9 +63,12 @@ def train_generator(training_generator, validate_generator, num_train_samples, n
 
     loss_object = SparseCategoricalCrossentropy()
 
-    model = NeuralLog(768, loss_object, optimizer)
+    model = NeuralLog(768, ff_dim=2048, max_len=75, num_heads=12, dropout=0.1)
 
     # model.load_weights("hdfs_transformer.hdf5")
+
+    model.compile(loss=loss_object, metrics=['accuracy'],
+                  optimizer=optimizer)
 
     print(model.summary())
 
@@ -96,7 +100,7 @@ def train_generator(training_generator, validate_generator, num_train_samples, n
     return model
 
 
-def train(X, Y, epoch_num, batch_size, tx, ty, model_file=None):
+def train(X, Y, epoch_num, batch_size, model_file=None):
     X, Y = shuffle(X, Y)
     n_samples = len(X)
     train_x, train_y = X[:int(n_samples * 90 / 100)], Y[:int(n_samples * 90 / 100)]
@@ -114,9 +118,22 @@ def train(X, Y, epoch_num, batch_size, tx, ty, model_file=None):
     return model
 
 
+def test_model(model, x, y, batch_size):
+    x, y = shuffle(x, y)
+    x, y = x[: len(x) // batch_size * batch_size], y[: len(y) // batch_size * batch_size]
+    test_loader = BatchGenerator(x, y, batch_size)
+    prediction = model.predict_generator(test_loader, steps=(len(x) // batch_size), workers=16, max_queue_size=32,
+                                         verbose=1)
+    prediction = np.argmax(prediction, axis=1)
+    y = y[:len(prediction)]
+    report = classification_report(np.array(y), prediction)
+    print(report)
+
+
 if __name__ == '__main__':
     (x_tr, y_tr), (x_te, y_te) = data_loader.load_supercomputers(
         log_file, train_ratio=0.8, windows_size=20,
         step_size=20, e_type='bert', mode='balance')
 
-    model = train(x_tr, y_tr, 20, 64, x_te, y_te, "bgl_transformer.hdf5")
+    model = train(x_tr, y_tr, 20, 64, "bgl_transformer.hdf5")
+    test_model(model, x_te, y_te, batch_size=1028)

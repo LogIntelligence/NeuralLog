@@ -1,7 +1,6 @@
 numpy~=1.19.5
-scikit-learn~=1.1.1
+scikit-learn~=0.24.2
 transformers~=4.19.2
-pandas~=1.4.1
 tensorflow~=2.4.0
 tf-models-official~=2.4.0
 pandas~=1.4.2
