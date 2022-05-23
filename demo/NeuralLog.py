@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.append("../")
 
 import pickle
@@ -13,10 +14,10 @@ from sklearn.utils import shuffle
 from neurallog.models import NeuralLog
 from neurallog import data_loader
 
-log_file = "../data/raw/BGL.log"
-emb_dir = "../data/embeddings/BGL"
+log_file = "../logs/BGL.log"
 embed_dim = 768  # Embedding size for each token
 max_len = 75
+
 
 class BatchGenerator(Sequence):
 
@@ -48,7 +49,6 @@ class BatchGenerator(Sequence):
 
 def train_generator(training_generator, validate_generator, num_train_samples, num_val_samples, batch_size,
                     epoch_num, model_name=None):
-
     epochs = epoch_num
     steps_per_epoch = num_train_samples
     num_train_steps = steps_per_epoch * epochs
@@ -113,15 +113,10 @@ def train(X, Y, epoch_num, batch_size, tx, ty, model_file=None):
 
     return model
 
+
 if __name__ == '__main__':
-    # (x_tr, y_tr), (x_te, y_te) = data_loader.load_Supercomputers(
-    #     log_file, train_ratio=0.8, windows_size=20,
-    #     step_size=5, e_type='bert', e_name=None, mode='balance')
-
-    with open(os.path.join(emb_dir, "bert-train.pkl"), mode="rb") as f:
-        (x_tr, y_tr) = pickle.load(f)
-
-    with open(os.path.join(emb_dir, "bert-test.pkl"), mode="rb") as f:
-        (x_te, y_te) = pickle.load(f)
+    (x_tr, y_tr), (x_te, y_te) = data_loader.load_supercomputers(
+        log_file, train_ratio=0.8, windows_size=20,
+        step_size=20, e_type='bert', mode='balance')
 
     model = train(x_tr, y_tr, 20, 64, x_te, y_te, "bgl_transformer.hdf5")

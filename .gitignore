@@ -131,3 +131,8 @@ dmypy.json
 # data and models
 #data/*/
 #saved_models/*
+.DS_Store
+*.xml
+*.iml
+*.tar
+*.log

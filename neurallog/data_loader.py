@@ -5,26 +5,37 @@ import re
 
 from sklearn.utils import shuffle
 import pickle
-import os
-import gensim
 import string
 from transformers import GPT2Tokenizer, TFGPT2Model
 from transformers import BertTokenizer, TFBertModel
 from transformers import RobertaTokenizer, TFRobertaModel
 import tensorflow as tf
+import time
 
-#
+# Pre-trained GPT2 model
 gpt2_tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
 gpt2_model = TFGPT2Model.from_pretrained('gpt2')
-#
+
+# Pre-trained BERT model
 bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 bert_model = TFBertModel.from_pretrained('bert-base-uncased')
 
-#
+# Pre-trained XLM model
 xlm_tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
 xlm_model = TFRobertaModel.from_pretrained('roberta-base')
 
+
 def gpt2_encoder(s, no_wordpiece=0):
+    """ Compute semantic vectors with GPT2
+    Parameters
+    ----------
+    s: string to encode
+    no_wordpiece: 1 if you do not use sub-word tokenization, otherwise 0
+
+    Returns
+    -------
+        np array in shape of (768,)
+    """
     if no_wordpiece:
         words = s.split(" ")
         words = [word for word in words if word in gpt2_tokenizer.get_vocab().keys()]
@@ -34,11 +45,21 @@ def gpt2_encoder(s, no_wordpiece=0):
         outputs = gpt2_model(**inputs)
         v = tf.reduce_mean(outputs.last_hidden_state, 1)
         return v[0]
-    except:
+    except Exception as _:
         return np.zeros((768,))
 
 
 def bert_encoder(s, no_wordpiece=0):
+    """ Compute semantic vector with BERT
+    Parameters
+    ----------
+    s: string to encode
+    no_wordpiece: 1 if you do not use sub-word tokenization, otherwise 0
+
+    Returns
+    -------
+        np array in shape of (768,)
+    """
     if no_wordpiece:
         words = s.split(" ")
         words = [word for word in words if word in bert_tokenizer.vocab.keys()]
@@ -50,6 +71,16 @@ def bert_encoder(s, no_wordpiece=0):
 
 
 def xlm_encoder(s, no_wordpiece=0):
+    """ Compute semantic vector with XLM
+    Parameters
+    ----------
+    s: string to encode
+    no_wordpiece: 1 if you do not use sub-word tokenization, otherwise 0
+
+    Returns
+    -------
+        np array in shape of (768,)
+    """
     if no_wordpiece:
         words = s.split(" ")
         words = [word for word in words if word in xlm_tokenizer.get_vocab().keys()]
@@ -61,6 +92,20 @@ def xlm_encoder(s, no_wordpiece=0):
 
 
 def _split_data(x_data, y_data=None, train_ratio=0, split_type='uniform'):
+    """ Split train/test data
+    Parameters
+    ----------
+    x_data: list, set of log sequences (in the type of semantic vectors)
+    y_data: list, labels for each log sequence
+    train_ratio: float, training ratio (e.g., 0.8)
+    split_type: `uniform` or `sequential`, which determines how to split dataset. `uniform` means
+            to split positive samples and negative samples equally when setting label_file. `sequential`
+            means to split the data sequentially without label_file. That is, the first part is for training,
+            while the second part is for testing.
+    Returns
+    -------
+
+    """
     (x_data, y_data) = shuffle(x_data, y_data)
     if split_type == 'uniform' and y_data is not None:
         pos_idx = y_data > 0
@@ -92,26 +137,16 @@ def _split_data(x_data, y_data=None, train_ratio=0, split_type='uniform'):
     return (x_train, y_train), (x_test, y_test)
 
 
-def slice_hdfs(x, y, window_size):
-    results_data = []
-    print("Slicing {} sessions, with window {}".format(x.shape[0], window_size))
-    for idx, sequence in enumerate(x):
-        seqlen = len(sequence)
-        i = 0
-        while (i + window_size) < seqlen:
-            slice = sequence[i: i + window_size]
-            results_data.append([idx, slice, sequence[i + window_size], y[idx]])
-            i += 1
-        else:
-            slice = sequence[i: i + window_size]
-            slice += ["#Pad"] * (window_size - len(slice))
-            results_data.append([idx, slice, "#Pad", y[idx]])
-    results_df = pd.DataFrame(results_data, columns=["SessionId", "EventSequence", "Label", "SessionLabel"])
-    print("Slicing done, {} windows generated".format(results_df.shape[0]))
-    return results_df[["SessionId", "EventSequence"]], results_df["Label"], results_df["SessionLabel"]
-
-
 def clean(s):
+    """ Preprocess log message
+    Parameters
+    ----------
+    s: str, raw log message
+
+    Returns
+    -------
+    str, preprocessed log message without number tokens and special characters
+    """
     # s = re.sub(r'(\d+\.){3}\d+(:\d+)?', " ", s)
     # s = re.sub(r'(\/.*?\.[\S:]+)', ' ', s)
     s = re.sub('\]|\[|\)|\(|\=|\,|\;', ' ', s)
@@ -125,21 +160,20 @@ def clean(s):
 
 
 def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
-              split_type='uniform',
-              save_csv=False,
-              window_size=0,
-              e_type="bert"):
-    """ Load HDFS structured log into train and test data
+              split_type='uniform', e_type="bert", no_word_piece=0):
+    """ Load HDFS unstructured log into train and test data
     Arguments
     ---------
-        log_file: str, the file path of structured log.
-        label_file: str, the file path of anomaly labels, None for unlabeled data
-        window: str, the window options including `session` (default).
+        log_file: str, the file path of raw log (extension: .log).
+        label_file: str, the file path of anomaly labels (extension: .csv).
         train_ratio: float, the ratio of training data for train/test split.
+        window: str, the window options including `session` (default).
         split_type: `uniform` or `sequential`, which determines how to split dataset. `uniform` means
             to split positive samples and negative samples equally when setting label_file. `sequential`
             means to split the data sequentially without label_file. That is, the first part is for training,
             while the second part is for testing.
+        e_type: str, embedding type (choose from BERT, XLM, and GPT2).
+        no_word_piece: bool, use split word into wordpiece or not.
     Returns
     -------
         (x_train, y_train): the training data
@@ -148,7 +182,7 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
 
     print('====== Input data summary ======')
 
-    E = {}
+    e_type = e_type.lower()
     if e_type == "bert":
         encoder = bert_encoder
     elif e_type == "xlm":
@@ -157,88 +191,70 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
         if e_type == "gpt2":
             encoder = gpt2_encoder
         else:
-            encoder = word2vec_encoder
+            raise ValueError('Embedding type {0} is not in BERT, XLM, and GPT2'.format(e_type.upper()))
 
     E = {}
     t0 = time.time()
-    if log_file.endswith('.npz'):
+    assert log_file.endswith('.log'), "Missing .log file"
+    # elif log_file.endswith('.log'):
+    assert window == 'session', "Only window=session is supported for HDFS dataset."
+    print("Loading", log_file)
+    with open(log_file, mode="r", encoding='utf8') as f:
+        logs = f.readlines()
+        logs = [x.strip() for x in logs]
+    data_dict = OrderedDict()
+    n_logs = len(logs)
+    print(n_logs)
+    print("Loaded", n_logs, "lines!")
+    for i, line in enumerate(logs):
+        blkId_list = re.findall(r'(blk_-?\d+)', line)
+        blkId_list = list(set(blkId_list))
+        if len(blkId_list) >= 2:
+            continue
+        blkId_set = set(blkId_list)
+        content = clean(line).lower()
+        if content not in E.keys():
+            E[content] = encoder(content, no_word_piece)
+        for blk_Id in blkId_set:
+            if not blk_Id in data_dict:
+                data_dict[blk_Id] = []
+            data_dict[blk_Id].append(E[content])
+        i += 1
+        if i % 1000 == 0 or i == n_logs:
+            print("Loading {0:.2f} - number of unique message: {1}".format(i / n_logs * 100, len(E.keys())))
+    data_df = pd.DataFrame(list(data_dict.items()), columns=['BlockId', 'EventSequence'])
+
+    if label_file:
         # Split training and validation set in a class-uniform way
-        data = np.load(log_file, allow_pickle=True)
-        x_data = data['data_x']
-        y_data = data['data_y']
-        (x_train, y_train), (x_test, y_test) = _split_data(x_data, y_data, train_ratio, split_type)
+        label_data = pd.read_csv(label_file, engine='c', na_filter=False, memory_map=True)
+        label_data = label_data.set_index('BlockId')
+        label_dict = label_data['Label'].to_dict()
+        data_df['Label'] = data_df['BlockId'].apply(lambda x: 1 if label_dict[x] == 'Anomaly' else 0)
+        print("Saving data...")
+        np.savez_compressed("data-{0}.npz".format(e_type), data_x=data_df['EventSequence'].values,
+                            data_y=data_df['Label'].values)
+        # Split train and test data
+        (x_train, y_train), (x_test, y_test) = _split_data(data_df['EventSequence'].values,
+                                                           data_df['Label'].values, train_ratio, split_type)
 
-    elif log_file.endswith('.log'):
-        assert window == 'session', "Only window=session is supported for HDFS dataset."
-        print("Loading", log_file)
-        with open(log_file, mode="r", encoding='utf8') as f:
-            logs = f.readlines()
-            logs = [x.strip() for x in logs]
-        print("Loaded!")
-        data_dict = OrderedDict()
-        n_logs = len(logs)
-        print(n_logs)
-        for i, line in enumerate(logs):
-            blkId_list = re.findall(r'(blk_-?\d+)', line)
-            blkId_list = list(set(blkId_list))
-            if len(blkId_list) >= 2:
-                continue
-            blkId_set = set(blkId_list)
-            content = clean(line).lower()
-            if content not in E.keys():
-                E[content] = encoder(content, 0)
-                print(content)
-            for blk_Id in blkId_set:
-                if not blk_Id in data_dict:
-                    data_dict[blk_Id] = []
-                data_dict[blk_Id].append(E[content])
-            i += 1
-            if i % 1000 == 0 or i == n_logs:
-                print("Loading {0:.2f} - number of unique message: {1}".format(i / n_logs * 100, len(E.keys())))
-        data_df = pd.DataFrame(list(data_dict.items()), columns=['BlockId', 'EventSequence'])
-
-        if label_file:
-            # Split training and validation set in a class-uniform way
-            label_data = pd.read_csv(label_file, engine='c', na_filter=False, memory_map=True)
-            label_data = label_data.set_index('BlockId')
-            label_dict = label_data['Label'].to_dict()
-            data_df['Label'] = data_df['BlockId'].apply(lambda x: 1 if label_dict[x] == 'Anomaly' else 0)
-            print("Saving data...")
-            np.savez_compressed("data-{0}.npz".format(e_type), data_x=data_df['EventSequence'].values,
-                                data_y=data_df['Label'].values)
-            # Split train and test data
-            (x_train, y_train), (x_test, y_test) = _split_data(data_df['EventSequence'].values,
-                                                               data_df['Label'].values, train_ratio, split_type)
-
-            print(y_train.sum(), y_test.sum())
-
-        if save_csv:
-            data_df.to_csv('data_instances.csv', index=False)
-
-        if window_size > 0:
-            x_train, window_y_train, y_train = slice_hdfs(x_train, y_train, window_size)
-            x_test, window_y_test, y_test = slice_hdfs(x_test, y_test, window_size)
-            log = "{} {} windows ({}/{} anomaly), {}/{} normal"
-            print(log.format("Train:", x_train.shape[0], y_train.sum(), y_train.shape[0], (1 - y_train).sum(),
-                             y_train.shape[0]))
-            print(log.format("Test:", x_test.shape[0], y_test.sum(), y_test.shape[0], (1 - y_test).sum(),
-                             y_test.shape[0]))
-            return (x_train, window_y_train, y_train), (x_test, window_y_test, y_test)
-
-        if label_file is None:
-            if split_type == 'uniform':
-                split_type = 'sequential'
-                print('Warning: Only split_type=sequential is supported \
-                if label_file=None.'.format(split_type))
-            # Split training and validation set sequentially
-            x_data = data_df['EventSequence'].values
-            (x_train, _), (x_test, _) = _split_data(x_data, train_ratio=train_ratio, split_type=split_type)
-            print('Total: {} instances, train: {} instances, test: {} instances'.format(
-                x_data.shape[0], x_train.shape[0], x_test.shape[0]))
-            return (x_train, None), (x_test, None), data_df
+        print(y_train.sum(), y_test.sum())
     else:
-        raise NotImplementedError('load_HDFS() only support csv and npz files!')
-    print(time.time() - t0)
+        raise NotImplementedError("Missing label file for the HDFS dataset!")
+
+    if label_file is None:
+        if split_type == 'uniform':
+            split_type = 'sequential'
+            print('Warning: Only split_type=sequential is supported \
+            if label_file=None.'.format(split_type))
+        # Split training and validation set sequentially
+        x_data = data_df['EventSequence'].values
+        (x_train, _), (x_test, _) = _split_data(x_data, train_ratio=train_ratio, split_type=split_type)
+        print('Total: {} instances, train: {} instances, test: {} instances'.format(
+            x_data.shape[0], x_train.shape[0], x_test.shape[0]))
+        return (x_train, None), (x_test, None), data_df
+    # else:
+    #     raise NotImplementedError('load_HDFS() only support csv and npz files!')
+    print("Loaded all HDFS dataset in: ", time.time() - t0)
 
     num_train = x_train.shape[0]
     num_test = x_test.shape[0]
@@ -255,6 +271,7 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
           .format(num_test, num_test_pos, num_test - num_test_pos))
 
     return (x_train, y_train), (x_test, y_test)
+
 
 def balancing(x, y):
     if y.count(0) > y.count(1):
@@ -291,25 +308,32 @@ def balancing(x, y):
         y = [s for i, s in enumerate(y) if check_ids[i]]
     return x, y
 
-def timestamp(log):
-    log = log[log.find(" ") + 1:]
-    t = log[:log.find(" ")]
-    return float(t)
 
-import time
-def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0, e_type='bert', e_name=None,
-             mode="balance", NoWordPiece=0):
+def load_supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0, e_type='bert', mode="balance",
+                        no_word_piece=0):
+    """ Load BGL, Thunderbird, and Spirit unstructured log into train and test data
+    Parameters
+    ----------
+    log_file: str, the file path of raw log (extension: .log).
+    train_ratio: float, the ratio of training data for train/test split.
+    windows_size: int, the window size for sliding window
+    step_size: int, the step size for sliding window. if step_size is equal to window_size then fixed window is applied.
+    e_type: str, embedding type (choose from BERT, XLM, and GPT2).
+    mode: str, split train/testing in balance or not
+    no_word_piece: bool, use split word into wordpiece or not.
+
+    Returns
+    -------
+    (x_tr, y_tr): the training data
+    (x_te, y_te): the testing data
+    """
     print("Loading", log_file)
 
     with open(log_file, mode="r", encoding='utf8') as f:
         logs = f.readlines()
         logs = [x.strip() for x in logs]
-    try:
-        with open(e_name, mode='rb') as f:
-            E = pickle.load(f)
-    except:
-        E = {}
-
+    E = {}
+    e_type = e_type.lower()
     if e_type == "bert":
         encoder = bert_encoder
     elif e_type == "xlm":
@@ -318,9 +342,9 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
         if e_type == "gpt2":
             encoder = gpt2_encoder
         else:
-            encoder = word2vec_encoder
+            raise ValueError('Embedding type {0} is not in BERT, XLM, and GPT2'.format(e_type.upper()))
 
-    print("Loaded")
+    print("Loaded", len(logs), "lines!")
     x_tr, y_tr = [], []
     i = 0
     failure_count = 0
@@ -344,23 +368,19 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
             content = clean(content.lower())
             if content not in E.keys():
                 try:
-                    E[content] = encoder(content, NoWordPiece)
-                except:
+                    E[content] = encoder(content, no_word_piece)
+                except Exception as _:
                     print(content)
-                # print(content)
             emb = E[content]
             seq.append(emb)
         x_tr.append(seq.copy())
         y_tr.append(label)
-        # j = i + 1
-        # while timestamp(logs[j]) - timestamp(logs[i]) < step_size:
-        #     j += 1
-        i = i + windows_size
+        i = i + step_size
     print("last train index:", i)
     x_te = []
     y_te = []
     #
-    for i in range(n_train, len(logs) - windows_size, windows_size):
+    for i in range(n_train, len(logs) - windows_size, step_size):
         if i % 1000 == 0:
             print("Loading {:.2f}".format(i * 100 / n_train))
         if logs[i][0] != "-":
@@ -375,12 +395,10 @@ def load_Supercomputers(log_file, train_ratio=0.5, windows_size=20, step_size=0,
             content = content[content.find(' ') + 1:]
             content = clean(content.lower())
             if content not in E.keys():
-                E[content] = encoder(content)
-                print(len(E.keys()))
+                E[content] = encoder(content, no_word_piece)
             emb = E[content]
             seq.append(emb)
         x_te.append(seq.copy())
-        # x_te.append(seq.copy())
         y_te.append(label)
 
     print(time.time() - t0)
