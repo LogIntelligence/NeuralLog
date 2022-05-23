@@ -135,5 +135,5 @@ if __name__ == '__main__':
         log_file, train_ratio=0.8, windows_size=20,
         step_size=20, e_type='bert', mode='balance')
 
-    model = train(x_tr, y_tr, 20, 64, "bgl_transformer.hdf5")
-    test_model(model, x_te, y_te, batch_size=1028)
+    model = train(x_tr, y_tr, 256, 64, "bgl_transformer.hdf5")
+    test_model(model, x_te, y_te, batch_size=1024)

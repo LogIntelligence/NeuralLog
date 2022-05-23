@@ -11,6 +11,7 @@ NeuralLog consists of the following components:
 2. **Neural Representation**: Semantic vectors are extracted from log messages using BERT.
 3. **Transformer-based Classification**: A transformer-based classification model containing Positional Encoding and Transformer Encoder is applied to detect anomalies.
 
+[//]: # ([PyTorch version]&#40;https://github.com/LogIntelligence/LogADEmpirical&#41;)
 ## Requirements
 1. Python 3.5 - 3.8
 2. tensorflow 2.4
@@ -36,6 +37,15 @@ emb_dir = "../data/embeddings/BGL"
 - Train/Test Transformer Model
 
 See [notebook](demo/Transformer_based_Classification.ipynb)
+
+- Full demo on the BGL dataset
+```shell
+$ pip install -r requirements.txt
+$ wget https://zenodo.org/record/3227177/files/BGL.tar.gz && tar -xvzf BGL.tar.gz
+$ mkdir logs && mv BGL.log logs/.
+$ cd demo
+$ python NeuralLog.py
+```
 ## Data and Models
 Datasets and pre-trained models can be found here: [Data](https://figshare.com/s/6d3c6a83f4828d17be79)
 ## Results
