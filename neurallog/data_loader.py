@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 import numpy as np
 from collections import OrderedDict
@@ -6,23 +8,24 @@ import re
 from sklearn.utils import shuffle
 import pickle
 import string
-from transformers import GPT2Tokenizer, TFGPT2Model
-from transformers import BertTokenizer, TFBertModel
-from transformers import RobertaTokenizer, TFRobertaModel
-import tensorflow as tf
+from transformers import GPT2Tokenizer, GPT2Model
+from transformers import BertTokenizer, BertModel
+from transformers import RobertaTokenizer, RobertaModel
 import time
+from datetime import datetime
+import torch
 
 # Pre-trained GPT2 model
 gpt2_tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-gpt2_model = TFGPT2Model.from_pretrained('gpt2')
+gpt2_model = GPT2Model.from_pretrained('gpt2')
 
 # Pre-trained BERT model
 bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-bert_model = TFBertModel.from_pretrained('bert-base-uncased')
+bert_model = BertModel.from_pretrained('bert-base-uncased')
 
 # Pre-trained XLM model
 xlm_tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
-xlm_model = TFRobertaModel.from_pretrained('roberta-base')
+xlm_model = RobertaModel.from_pretrained('roberta-base')
 
 
 def gpt2_encoder(s, no_wordpiece=0):
@@ -41,9 +44,9 @@ def gpt2_encoder(s, no_wordpiece=0):
         words = [word for word in words if word in gpt2_tokenizer.get_vocab().keys()]
         s = " ".join(words)
     try:
-        inputs = gpt2_tokenizer(s, return_tensors='tf', max_length=512)
+        inputs = gpt2_tokenizer(s, return_tensors='pt', max_length=512)
         outputs = gpt2_model(**inputs)
-        v = tf.reduce_mean(outputs.last_hidden_state, 1)
+        v = torch.mean(outputs.last_hidden_state, dim=1)
         return v[0]
     except Exception as _:
         return np.zeros((768,))
@@ -64,9 +67,9 @@ def bert_encoder(s, no_wordpiece=0):
         words = s.split(" ")
         words = [word for word in words if word in bert_tokenizer.vocab.keys()]
         s = " ".join(words)
-    inputs = bert_tokenizer(s, return_tensors='tf', max_length=512)
+    inputs = bert_tokenizer(s, return_tensors='pt', max_length=512)
     outputs = bert_model(**inputs)
-    v = tf.reduce_mean(outputs.last_hidden_state, 1)
+    v = torch.mean(outputs.last_hidden_state, dim=1)
     return v[0]
 
 
@@ -85,9 +88,9 @@ def xlm_encoder(s, no_wordpiece=0):
         words = s.split(" ")
         words = [word for word in words if word in xlm_tokenizer.get_vocab().keys()]
         s = " ".join(words)
-    inputs = xlm_tokenizer(s, return_tensors='tf', max_length=512)
+    inputs = xlm_tokenizer(s, return_tensors='pt', max_length=512)
     outputs = xlm_model(**inputs)
-    v = tf.reduce_mean(outputs.last_hidden_state, 1)
+    v = torch.mean(outputs.last_hidden_state, dim=1)
     return v[0]
 
 
@@ -159,6 +162,23 @@ def clean(s):
     return s
 
 
+def performance_injection(sequence):
+    ti = sequence[1]
+    i = 0
+    cnt = 5
+    insert_idx = dict()
+    while i < cnt:
+        idx = random.randint(0, len(ti) - 1)
+        if idx in insert_idx: continue
+        if 0 <= ti[idx] < 2:
+            ti[idx] += 3
+        else:
+            continue
+        insert_idx[idx] = True
+        i += 1
+
+
+
 def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
               split_type='uniform', e_type="bert", no_word_piece=0):
     """ Load HDFS unstructured log into train and test data
@@ -207,6 +227,8 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
     print(n_logs)
     print("Loaded", n_logs, "lines!")
     for i, line in enumerate(logs):
+        timestamp = " ".join(line.split()[:2])
+        timestamp = datetime.strptime(timestamp, '%y%m%d %H%M%S').timestamp()
         blkId_list = re.findall(r'(blk_-?\d+)', line)
         blkId_list = list(set(blkId_list))
         if len(blkId_list) >= 2:
@@ -218,21 +240,24 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
         for blk_Id in blkId_set:
             if not blk_Id in data_dict:
                 data_dict[blk_Id] = []
-            data_dict[blk_Id].append(E[content])
+            data_dict[blk_Id].append((E[content], timestamp))
         i += 1
         if i % 1000 == 0 or i == n_logs:
             print("\rLoading {0:.2f}% - number of unique message: {1}".format(i / n_logs * 100, len(E.keys())), end="")
-    data_df = pd.DataFrame(list(data_dict.items()), columns=['BlockId', 'EventSequence'])
-
+    for k, v in data_dict.items():
+        seq = [x[0] for x in v]
+        rt = [x[1] for x in v]
+        rt = [rt[i] - rt[i - 1] for i in range(len(rt))]
+        rt = [0] + rt
+        data_dict[k] = (seq, rt)
+    
     if label_file:
         # Split training and validation set in a class-uniform way
         label_data = pd.read_csv(label_file, engine='c', na_filter=False, memory_map=True)
         label_data = label_data.set_index('BlockId')
         label_dict = label_data['Label'].to_dict()
-        data_df['Label'] = data_df['BlockId'].apply(lambda x: 1 if label_dict[x] == 'Anomaly' else 0)
-        print("Saving data...")
-        np.savez_compressed("data-{0}.npz".format(e_type), data_x=data_df['EventSequence'].values,
-                            data_y=data_df['Label'].values)
+        normal_seqs = [v for k, v in data_dict.items() if label_dict[k] == 0]
+        
         # Split train and test data
         (x_train, y_train), (x_test, y_test) = _split_data(data_df['EventSequence'].values,
                                                            data_df['Label'].values, train_ratio, split_type)
@@ -240,20 +265,7 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
         print(y_train.sum(), y_test.sum())
     else:
         raise NotImplementedError("Missing label file for the HDFS dataset!")
-
-    if label_file is None:
-        if split_type == 'uniform':
-            split_type = 'sequential'
-            print('Warning: Only split_type=sequential is supported \
-            if label_file=None.'.format(split_type))
-        # Split training and validation set sequentially
-        x_data = data_df['EventSequence'].values
-        (x_train, _), (x_test, _) = _split_data(x_data, train_ratio=train_ratio, split_type=split_type)
-        print('Total: {} instances, train: {} instances, test: {} instances'.format(
-            x_data.shape[0], x_train.shape[0], x_test.shape[0]))
-        return (x_train, None), (x_test, None), data_df
-    # else:
-    #     raise NotImplementedError('load_HDFS() only support csv and npz files!')
+        
     print("\nLoaded all HDFS dataset in: ", time.time() - t0)
 
     num_train = x_train.shape[0]
