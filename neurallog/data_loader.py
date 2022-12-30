@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 import numpy as np
 from collections import OrderedDict
@@ -11,6 +13,7 @@ from transformers import BertTokenizer, TFBertModel
 from transformers import RobertaTokenizer, TFRobertaModel
 import tensorflow as tf
 import time
+from datetime import datetime
 
 # Pre-trained GPT2 model
 gpt2_tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
@@ -159,6 +162,23 @@ def clean(s):
     return s
 
 
+def performance_injection(sequence):
+    ti = sequence[1]
+    i = 0
+    cnt = 5
+    insert_idx = dict()
+    while i < cnt:
+        idx = random.randint(0, len(ti) - 1)
+        if idx in insert_idx: continue
+        if 0 <= ti[idx] < 2:
+            ti[idx] += 3
+        else:
+            continue
+        insert_idx[idx] = True
+        i += 1
+
+
+
 def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
               split_type='uniform', e_type="bert", no_word_piece=0):
     """ Load HDFS unstructured log into train and test data
@@ -207,6 +227,8 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
     print(n_logs)
     print("Loaded", n_logs, "lines!")
     for i, line in enumerate(logs):
+        timestamp = " ".join(line.split()[:2])
+        timestamp = datetime.strptime(timestamp, '%y%m%d %H%M%S').timestamp()
         blkId_list = re.findall(r'(blk_-?\d+)', line)
         blkId_list = list(set(blkId_list))
         if len(blkId_list) >= 2:
@@ -218,11 +240,18 @@ def load_HDFS(log_file, label_file=None, train_ratio=0.5, window='session',
         for blk_Id in blkId_set:
             if not blk_Id in data_dict:
                 data_dict[blk_Id] = []
-            data_dict[blk_Id].append(E[content])
+            data_dict[blk_Id].append((E[content], timestamp))
         i += 1
         if i % 1000 == 0 or i == n_logs:
             print("\rLoading {0:.2f}% - number of unique message: {1}".format(i / n_logs * 100, len(E.keys())), end="")
-    data_df = pd.DataFrame(list(data_dict.items()), columns=['BlockId', 'EventSequence'])
+    for k, v in data_dict.items():
+        seq = [x[0] for x in v]
+        rt = [x[1] for x in v]
+        rt = [rt[i] - rt[i - 1] for i in range(len(rt))]
+        rt = [0] + rt
+        data_dict[k] = (seq, rt)
+    data_df = [(k, v[0], v[1]) for k, v in data_dict.items()]
+    data_df = pd.DataFrame(data_df, columns=['BlockId', 'EventSequence', "TimeSequence"])
 
     if label_file:
         # Split training and validation set in a class-uniform way
